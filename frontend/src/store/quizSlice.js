@@ -228,3 +228,4 @@ export const {
 } = quizSlice.actions;
 
 export default quizSlice.reducer;
+
