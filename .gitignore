@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+backend/venv/
+venv/
+ENV/
+env/
+.pytest_cache/
+*.db
+*.sqlite
+*.sqlite3
+
+# Node / React
+frontend/node_modules/
+node_modules/
+frontend/dist/
+dist/
+.DS_Store
+
+# Environment & IDE
+.env
+.env.local
+.vscode/
+.idea/
+*.log
