@@ -261,3 +261,4 @@ In accordance with the task instructions:
 - **Prompt Engineering & Schema Definition**: AI was used to draft the system prompt and JSON schema constraints ensuring LLMs consistently produce exactly 4 choices with exactly 1 true answer and kid-friendly explanations.
 - **Test Scenarios**: AI helped structure the boundary test cases for character limits (49 chars vs 50 chars, 5000 chars vs 5001 chars) and age validation (7 vs 8, 14 vs 15).
 - **UI Design Inspiration**: AI assisted in crafting modern, child-friendly Tailwind color palettes, icon alignments, and interactive state progressions.
+

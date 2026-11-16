@@ -47,3 +47,4 @@ class Option(Base):
     is_correct = Column(Boolean, default=False, nullable=False)
 
     question = relationship("Question", back_populates="options")
+

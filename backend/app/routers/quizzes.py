@@ -206,3 +206,4 @@ def delete_quiz(quiz_id: int, db: Session = Depends(get_db)):
     db.delete(quiz)
     db.commit()
     return None
+

@@ -137,3 +137,4 @@ class LLMQuizPayload(BaseModel):
         if len(v) != 5:
             raise ValueError(f"Quiz must have exactly 5 questions (received {len(v)}).")
         return v
+

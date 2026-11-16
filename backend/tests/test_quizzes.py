@@ -186,3 +186,4 @@ def test_get_nonexistent_quiz_returns_404(client):
     res = client.get("/api/quizzes/999999")
     assert res.status_code == 404
     assert "not found" in res.json()["detail"].lower()
+
