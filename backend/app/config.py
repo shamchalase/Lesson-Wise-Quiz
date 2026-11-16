@@ -12,6 +12,14 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = "sqlite:///./quizzes.db"
+    
+    # MongoDB Atlas
+    mongodb_url: str = Field(
+        default="mongodb+srv://shamchalase_db_user:VAeVAmTO1OdOy6wq@cluster0.lzefjeu.mongodb.net/?retryWrites=true&w=majority",
+        validation_alias="MONGODB_URL"
+    )
+    mongodb_db_name: str = Field(default="lesson_quiz_db", validation_alias="MONGODB_DB_NAME")
+    use_mongodb: bool = Field(default=True, validation_alias="USE_MONGODB")
 
     # LLM Settings
     # Default to True so the app works out-of-the-box without requiring an API key
@@ -33,4 +41,3 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-

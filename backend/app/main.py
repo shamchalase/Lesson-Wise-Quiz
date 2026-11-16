@@ -9,6 +9,8 @@ from app.config import settings
 from app.database import engine, Base
 from app.routers import quizzes
 
+from app.mongodb import mongo_manager
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -80,6 +82,8 @@ def root():
 def health_check():
     return {
         "status": "healthy",
+        "database": "mongodb" if mongo_manager.is_connected else "sqlite",
+        "mongodb_connected": mongo_manager.is_connected,
         "mock_mode": settings.mock_llm,
         "provider": settings.llm_provider,
     }

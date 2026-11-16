@@ -14,6 +14,7 @@ from app.schemas import (
     QuizSummaryResponse,
 )
 from app.services.llm_service import LLMService, LLMServiceError
+from app.mongodb import mongo_manager
 
 logger = logging.getLogger(__name__)
 
@@ -33,9 +34,8 @@ def create_quiz(payload: QuizCreateRequest, db: Session = Depends(get_db)):
     Validates input bounds (50 - 5,000 chars for lesson_text).
     Prompts the LLM (or mock generator) to construct 5 multiple-choice questions
     with exactly 4 options each and 1 correct answer.
-    Saves everything atomically into the database and returns the created quiz.
+    Saves everything into MongoDB (or falls back to SQLite) and returns the created quiz.
     """
-    # Double check validation rules (also checked in Pydantic schema)
     raw_length = len(payload.lesson_text.strip())
     if raw_length < 50:
         raise HTTPException(
@@ -53,7 +53,7 @@ def create_quiz(payload: QuizCreateRequest, db: Session = Depends(get_db)):
             detail=f"Target age must be between 8 and 14 years old (received {payload.age})."
         )
 
-    # Call LLM / Mock Service
+    # Generate quiz using LLM service
     try:
         llm_output = llm_service.generate_quiz(
             title=payload.title,
@@ -73,7 +73,19 @@ def create_quiz(payload: QuizCreateRequest, db: Session = Depends(get_db)):
             detail="An unexpected error occurred while generating quiz questions."
         )
 
-    # Persist in Database atomically
+    # 1. Route to MongoDB if connected
+    if mongo_manager.is_connected:
+        try:
+            return mongo_manager.create_quiz(
+                title=payload.title,
+                lesson_text=payload.lesson_text,
+                age=payload.age,
+                llm_questions=llm_output.questions,
+            )
+        except Exception as e:
+            logger.error(f"MongoDB write failed: {e}. Falling back to SQLite...")
+
+    # 2. SQLite Fallback Persistence
     try:
         db_quiz = Quiz(
             title=payload.title,
@@ -81,7 +93,7 @@ def create_quiz(payload: QuizCreateRequest, db: Session = Depends(get_db)):
             age=payload.age,
         )
         db.add(db_quiz)
-        db.flush()  # to obtain db_quiz.id
+        db.flush()
 
         for q_idx, q_item in enumerate(llm_output.questions):
             db_question = Question(
@@ -90,7 +102,7 @@ def create_quiz(payload: QuizCreateRequest, db: Session = Depends(get_db)):
                 explanation=q_item.explanation,
             )
             db.add(db_question)
-            db.flush()  # to obtain db_question.id
+            db.flush()
 
             for o_item in q_item.options:
                 db_option = Option(
@@ -125,12 +137,17 @@ def list_quizzes(
 ):
     """
     Returns a paginated list of quizzes sorted newest first.
-    Each item contains id, title, age, created_at, and question_count.
+    Queries MongoDB when connected, or falls back to SQLite.
     """
+    if mongo_manager.is_connected:
+        try:
+            return mongo_manager.list_quizzes(page=page, size=size)
+        except Exception as e:
+            logger.error(f"MongoDB list query failed: {e}. Falling back to SQLite...")
+
     total = db.query(func.count(Quiz.id)).scalar() or 0
     offset = (page - 1) * size
 
-    # Query quizzes with question count
     quizzes = (
         db.query(Quiz)
         .options(joinedload(Quiz.questions))
@@ -171,6 +188,14 @@ def get_quiz(quiz_id: int, db: Session = Depends(get_db)):
     """
     Returns a single quiz with its 5 questions, options, and correct answers.
     """
+    if mongo_manager.is_connected:
+        try:
+            quiz = mongo_manager.get_quiz(quiz_id)
+            if quiz:
+                return quiz
+        except Exception as e:
+            logger.error(f"MongoDB fetch query failed: {e}. Checking SQLite...")
+
     quiz = (
         db.query(Quiz)
         .options(
@@ -195,15 +220,24 @@ def get_quiz(quiz_id: int, db: Session = Depends(get_db)):
     summary="Delete a quiz by ID"
 )
 def delete_quiz(quiz_id: int, db: Session = Depends(get_db)):
-    """Deletes a quiz and cascades deletion to its questions and options."""
+    """Deletes a quiz and cascades deletion."""
+    deleted_mongo = False
+    if mongo_manager.is_connected:
+        try:
+            deleted_mongo = mongo_manager.delete_quiz(quiz_id)
+        except Exception as e:
+            logger.error(f"MongoDB deletion failed: {e}")
+
     quiz = db.query(Quiz).filter(Quiz.id == quiz_id).first()
-    if not quiz:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Quiz with ID {quiz_id} not found."
-        )
+    if quiz:
+        db.delete(quiz)
+        db.commit()
+        return None
 
-    db.delete(quiz)
-    db.commit()
-    return None
+    if deleted_mongo:
+        return None
 
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=f"Quiz with ID {quiz_id} not found."
+    )
